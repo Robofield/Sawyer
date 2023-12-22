@@ -1,6 +1,3 @@
-[submodule "Projects/IR-Assignment2"]
-	path = Projects/IR-Assignment2
-	url = git@github.com:minhtugonnabelit/IR-Assignment2.git
 [submodule "Projects/sawyer_vr_teleop"]
 	path = Projects/sawyer_vr_teleop
 	url = git@github.com:paulonhantumbojr/sawyer_vr_teleop.git
