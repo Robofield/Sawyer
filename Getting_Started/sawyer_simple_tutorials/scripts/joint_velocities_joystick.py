@@ -7,6 +7,7 @@ from intera_core_msgs.msg import JointCommand
 
 import numpy as np
 import roboticstoolbox as rtb
+# from sawyerRTB import Sawyer
 
 POSITION_MODE = int(1)
 VELOCITY_MODE = int(2)
@@ -79,13 +80,16 @@ class Sawyer(rtb.DHRobot):
 
         return links
     
+    def set_robot_state(self, q):
+        self.q = q
+
 class VelCtrl:
 
     _VEL_SCALE = {'linear': 0.2, 'angular': 0.3}
 
     def __init__(self, limb) -> None:
 
-        # Define the limb object to use the robot's interface for setting neutral
+        # Define the limb object to use the robot's interface for setting neutral 
         self._limb = limb
         
         self._gripper = self._gripper_ctrl_init()
@@ -110,7 +114,6 @@ class VelCtrl:
         self._head = intera_interface.Head()
 
         # Wait for actual joint_states to be stored by js_store() callback (NOTE: Don't change the 'is' to '==')
-        self._cur_config = np.array([])
         while np.sum(self._cur_config) is 0:
 
             # If the current joint configurations of the robot are set to 0 put the thread to sleep (similar to a rate_limiter.sleep())
