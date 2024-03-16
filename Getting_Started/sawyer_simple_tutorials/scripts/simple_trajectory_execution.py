@@ -24,16 +24,42 @@ TORQUE_MODE = int(3)
 TRAJECTORY_MODE = int(4)
 
 VEL_SCALE = {'linear': 0.3, 'angular': 0.8}
-PICK_JS = [-1.507130859375, -0.065736328125, -0.6643173828125,
-           1.20662109375, -0.0244140625, -1.1122587890625, 0.883083984375]
-WAIT_JS = [-1.7902197265625, -0.2913447265625, -0.2379609375,
-           1.800587890625, -0.2802314453125, -1.6700625, 0.379505859375]
-HANG_TO_BEND = [0.00, -0.82, 0.00, 2.02, 0.00, -1.22,  0]
-HANG_TO_RETURN = [-1.686873046875, -0.4110595703125, -0.2816884765625, 1.430654296875, -0.27078125, -1.1363759765625, 0.5559462890625]
+
+PICK_JS = [-1.507130859375, 
+           -0.065736328125, 
+           -0.6643173828125,
+           1.20662109375, 
+           -0.0244140625, 
+           -1.1122587890625, 
+           0.883083984375]
+
+WAIT_JS = [-1.7902197265625, 
+           -0.2913447265625, 
+           -0.2379609375,
+           1.800587890625, -
+           0.2802314453125, 
+           -1.6700625, 
+           0.379505859375]
+
+HANG_TO_BEND = [0.00, 
+                -0.82, 
+                0.00, 
+                2.02, 
+                0.00, 
+                -1.22,  
+                0]
+
+HANG_TO_RETURN = [-1.686873046875, 
+                  -0.4110595703125, 
+                  -0.2816884765625,
+                  1.430654296875, 
+                  -0.27078125, 
+                  -1.1363759765625,
+                  0.5559462890625]
 
 # HANG_TO_BEND_POSE = #sm.SE3(0.79, 0.16, 0.24) @ sm.SE3.Ry(np.pi/2)
 PICKER_GRIP_POSE = sm.SE3(0.105, 0, 0) @ sm.SE3.RPY(0, -
-                                                  90, -180, unit='deg', order='xyz')
+                                                    90, -180, unit='deg', order='xyz')
 BENDER_GRIP_POSE = sm.SE3(-0.11, 0, 0) @ sm.SE3.RPY(-90,
                                                     90, -90, unit='deg', order='xyz')
 
@@ -41,7 +67,8 @@ BENDER_GRIP_POSE = sm.SE3(-0.11, 0, 0) @ sm.SE3.RPY(-90,
 # EXTERNAL SIGNAL TRIGGER CLASS #
 #################################
 
-class VelControl():
+
+class SimpleController():
 
     def __init__(self, limb):
 
@@ -57,7 +84,9 @@ class VelControl():
 
         # Joint States Subscriber (obtain the current joint states for the vel_ctrl_sim_interface)
         self.cur_ee_pose = None
-        self.cur_config = rospy.wait_for_message("/robot/joint_states", JointState).position
+        self.cur_config = rospy.wait_for_message(
+            "/robot/joint_states", JointState).position
+        
         rospy.Subscriber("/robot/joint_states", JointState, self.js_callback)
 
         # Velocity Control Message Publisher
@@ -68,20 +97,8 @@ class VelControl():
         self._pub_rate = rospy.Publisher(
             'robot/joint_state_publish_rate', UInt16, queue_size=10)
 
-        self.joint_angles_control_init()
+        self.traj, self.waypoint = self.joint_angles_control_init(limb)
 
-        # Set initial joint states to 0, may need to change in IRL use
-        # self.cur_config = rospy.wait_for_message("/robot/joint_states", JointState).position
-
-        # # Wait for actual joint_states to be stored by js_store() callback (NOTE: Don't change the 'is' to '==')
-        # while np.sum(self.cur_config) is 0:
-
-        #     # If the current joint configurations of the robot are set to 0 put the thread to sleep (similar to a rate_limiter.sleep())
-        #     rospy.sleep(0.1)
-
-        # rospy.wait_for_message("/robot/joint_states", JointState)
-
-    # Extract the current joint states of Sawyer
 
     def js_callback(self, js: JointState):
         """
@@ -101,98 +118,9 @@ class VelControl():
 
             # get current joint state from robot, remove the first and last element (head_pan and torso_t0)
             cur_js = np.delete(self.cur_config, [0, -1])
-            print(cur_js)
             self._robot.q = np.array(cur_js)
             self.cur_ee_pose = self._robot.fkine(self._robot.q)
-
-    @staticmethod
-    def joint_command_to_msg():
-        """
-        """
-
-        # Joint Command Message Initialisation
-        joint_command_msg = JointCommand()
-
-        # To check the order of the joints run a 'rostopic echo /robot/joint_states', and assign the order displayed to the JointCommand().names argument
-        joint_command_msg.names = [
-            "head_pan",
-            "right_j0",
-            "right_j1",
-            "right_j2",
-            "right_j3",
-            "right_j4",
-            "right_j5",
-            "right_j6",
-            "torso_t0",
-        ]
-
-        # Set the control mode to the VELOCITY
-        joint_command_msg.mode = VELOCITY_MODE
-
-        # Set the initial velocity at all joints to 0.0
-        joint_command_msg.velocity = np.ndarray.tolist(
-            np.zeros(len(joint_command_msg.names))
-        )
-
-        return joint_command_msg
-
-
-    def gripper_ctrl_init(self):
-        """
-        """
-
-        # Initialise interfaces
-        rs = intera_interface.RobotEnable(CHECK_VERSION)
-        init_state = rs.state()
-        gripper = None
-        original_deadzone = None
-
-        rp = intera_interface.RobotParams()
-        valid_limbs = rp.get_limb_names()
-
-        # Cleaning function (executed on shutdown)
-        def clean_shutdown():
-            if gripper and original_deadzone:
-                gripper.set_dead_zone(original_deadzone)
-
-        try:
-            # Instantiate the gripper object
-            gripper = intera_interface.Gripper(
-                valid_limbs[0] + "_gripper")
-        except (ValueError, OSError) as e:
-            rospy.logerr(
-                "Could not detect an electric gripper attached to the robot.")
-            clean_shutdown()
-            return
-        rospy.on_shutdown(clean_shutdown)
-
-        # Possible deadzone values: 0.001 - 0.002
-        original_deadzone = gripper.get_dead_zone()
-        gripper.set_dead_zone(0.001)
-
-        return gripper
     
-
-    def joint_angles_control_init(self):
-        """
-        """
-        try:
-            self.traj = MotionTrajectory(limb=self._limb)
-
-            wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.2,
-                                             max_joint_accel=0.04)
-            self.waypoint = MotionWaypoint(
-                options=wpt_opts.to_msg(), limb=self._limb)
-
-            self.joint_angles = self._limb.joint_ordered_angles()
-
-            self.waypoint.set_joint_angles(joint_angles=self.joint_angles)
-            self.traj.append_waypoint(self.waypoint.to_msg())
-
-        except rospy.ROSInterruptException:
-            rospy.logerr(
-                'Keyboard interrupt detected from the user. Exiting before trajectory completion.')
-
 
     def home_robot(self):
         """
@@ -210,30 +138,6 @@ class VelControl():
         return self.cur_ee_pose
 
 
-    def solve_RMRC(jacob, ee_vel):
-        """
-        """
-        # calculate manipulability
-        w = np.sqrt(np.linalg.det(jacob @ np.transpose(jacob)))
-
-        # set threshold and damping
-        w_thresh = 0.04
-        max_damp = 0.5
-
-        # if manipulability is less than threshold, add damping
-        if w < w_thresh:
-            damp = (1-np.power(w/w_thresh, 2)) * max_damp
-        else:
-            damp = 0
-
-        # calculate damped least square
-        j_dls = np.transpose(jacob) @ np.linalg.inv(jacob @
-                                                    np.transpose(jacob) + damp * np.eye(6))
-
-        # get joint velocities, if robot is in singularity, use damped least square
-        joint_vel = j_dls @ np.transpose(ee_vel)
-
-        return joint_vel
 
     def single_step_control(self, pose, time_step, tolerance=0.001):
         """
@@ -270,9 +174,10 @@ class VelControl():
         # calculate joint velocities, singularity check is already included in the function
 
         j = self._robot.jacob0(self._robot.q)
-        joint_vel = VelControl.solve_RMRC(j, ee_vel)
+        joint_vel = SimpleController.solve_RMRC(j, ee_vel)
 
         return joint_vel
+
 
     def follow_cart_path(self, path, speed=1):
         """
@@ -305,7 +210,7 @@ class VelControl():
                 joint_vel = np.insert(joint_vel, 0, 0)
                 joint_vel = np.insert(joint_vel, len(joint_vel), 0)
 
-                joint_command = VelControl.joint_command_to_msg()
+                joint_command = SimpleController.joint_command_to_msg()
                 joint_command.velocity = np.ndarray.tolist(joint_vel)
                 joint_command.header.stamp = rospy.Time.now()
                 self.pub_joint_ctrl_msg(joint_command)
@@ -340,13 +245,13 @@ class VelControl():
 
         self.traj.clear_waypoints()
 
+        return result.result
 
     def pub_joint_ctrl_msg(self, msg:  JointCommand):
 
         # Publish the joint velocities if the grip button is pressed
         msg.header.stamp = rospy.Time.now()
         self.pub.publish(msg)
-
 
     def send_vel_command(self, joint_vel):
         # Declare the joint's limit speed (NOTE: For safety purposes, set this to a value below or equal to 0.6 rad/s. Speed range spans from 0.0-1.0 rad/s)
@@ -363,26 +268,40 @@ class VelControl():
         joint_vel = np.insert(joint_vel, 0, 0)
         joint_vel = np.insert(joint_vel, len(joint_vel), 0)
 
-        joint_command = VelControl.joint_command_to_msg()
+        joint_command = SimpleController.joint_command_to_msg()
         joint_command.velocity = np.ndarray.tolist(joint_vel)
         joint_command.header.stamp = rospy.Time.now()
         self.pub_joint_ctrl_msg(joint_command)
         self._rate.sleep()
 
-
     def open_gripper(self):
-        self.gripper.open()
 
+        if self.gripper is not None:
+            self.gripper.open() 
 
     def close_gripper(self):
-        self.gripper.close()
 
-    
+        if self.gripper is not None:
+            self.gripper.close()
+
+    def home_robot(self):
+        """
+        """
+        self.go_to_joint_angles(WAIT_JS)
+        self._robot.q = np.array(WAIT_JS)
+
+    def get_ee_pose(self):
+        """
+        """
+        while self.cur_ee_pose is None:
+            rospy.sleep(0.1)
+
+        return self.cur_ee_pose
+
     def gen_path(current_pose, desired_pose, num_points=100):
 
         path = np.empty((num_points, 3))
         s = rtb.quintic(0, 1, num_points).s
-        # s = rtb.trapezoidal(0, 1, num_points).s
         for i in range(num_points):
             path[i, :] = (1 - s[i])*current_pose.A[0:3, 3] + \
                 s[i]*desired_pose.A[0:3, 3]
@@ -394,6 +313,134 @@ class VelControl():
             path_to_send.append(p)
 
         return path_to_send
+    
+    @staticmethod
+    def joint_angles_control_init(limb):
+        """
+        """
+        try:
+            # self.traj = MotionTrajectory(limb=self._limb)
+
+            # wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.2,
+            #                                  max_joint_accel=0.04)
+            # self.waypoint = MotionWaypoint(
+            #     options=wpt_opts.to_msg(), limb=self._limb)
+
+            # self.joint_angles = self._limb.joint_ordered_angles()
+
+            # self.waypoint.set_joint_angles(joint_angles=self.joint_angles)
+            # self.traj.append_waypoint(self.waypoint.to_msg())
+
+
+            traj = MotionTrajectory(limb=limb)
+            wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=0.2,
+                                                max_joint_accel=0.04)
+            waypoint = MotionWaypoint(options=wpt_opts.to_msg(), limb=limb)
+
+            joint_angles = limb.joint_ordered_angles()
+            waypoint.set_joint_angles(joint_angles=joint_angles)
+            traj.append_waypoint(waypoint.to_msg())
+
+            return traj, waypoint
+
+        except rospy.ROSInterruptException:
+            rospy.logerr(
+                'Keyboard interrupt detected from the user. Exiting before trajectory completion.')
+
+    @staticmethod
+    def gripper_ctrl_init():
+        """
+        """
+
+        # Initialise interfaces
+        rs = intera_interface.RobotEnable(CHECK_VERSION)
+        init_state = rs.state()
+        gripper = None
+        original_deadzone = None
+
+        rp = intera_interface.RobotParams()
+        valid_limbs = rp.get_limb_names()
+
+        # Cleaning function (executed on shutdown)
+        def clean_shutdown():
+            if gripper and original_deadzone:
+                gripper.set_dead_zone(original_deadzone)
+
+        try:
+            # Instantiate the gripper object
+            gripper = intera_interface.Gripper(
+                valid_limbs[0] + "_gripper")
+        except (ValueError, OSError) as e:
+            rospy.logerr(
+                "Could not detect an electric gripper attached to the robot.")
+            clean_shutdown()
+            return
+        rospy.on_shutdown(clean_shutdown)
+
+        # Possible deadzone values: 0.001 - 0.002
+        original_deadzone = gripper.get_dead_zone()
+        gripper.set_dead_zone(0.001)
+
+        return gripper
+    
+    @staticmethod
+    def joint_command_to_msg():
+        """
+        """
+
+        # Joint Command Message Initialisation
+        joint_command_msg = JointCommand()
+
+        # To check the order of the joints run a 'rostopic echo /robot/joint_states', and assign the order displayed to the JointCommand().names argument
+        joint_command_msg.names = [
+            "head_pan",
+            "right_j0",
+            "right_j1",
+            "right_j2",
+            "right_j3",
+            "right_j4",
+            "right_j5",
+            "right_j6",
+            "torso_t0",
+        ]
+
+        # Set the control mode to the VELOCITY
+        joint_command_msg.mode = VELOCITY_MODE
+
+        # Set the initial velocity at all joints to 0.0
+        joint_command_msg.velocity = np.ndarray.tolist(
+            np.zeros(len(joint_command_msg.names))
+        )
+
+        return joint_command_msg
+    
+    
+
+    @staticmethod
+    def solve_RMRC(jacob, ee_vel):
+        """
+        """
+        # calculate manipulability
+        w = np.sqrt(np.linalg.det(jacob @ np.transpose(jacob)))
+
+        # set threshold and damping
+        w_thresh = 0.04
+        max_damp = 0.5
+
+        # if manipulability is less than threshold, add damping
+        if w < w_thresh:
+            damp = (1-np.power(w/w_thresh, 2)) * max_damp
+        else:
+            damp = 0
+
+        # calculate damped least square
+        j_dls = np.transpose(jacob) @ np.linalg.inv(jacob @
+                                                    np.transpose(jacob) + damp * np.eye(6))
+
+        # get joint velocities, if robot is in singularity, use damped least square
+        joint_vel = j_dls @ np.transpose(ee_vel)
+
+        return joint_vel
 
 
 def main():
@@ -402,7 +449,7 @@ def main():
 
     # initialize robot and controller
     robot = Limb()
-    controller = VelControl(robot)
+    controller = SimpleController(robot)
 
     # HOME POSITION
     controller.go_to_joint_angles(WAIT_JS)
@@ -428,13 +475,13 @@ def main():
     # MOVE BACKWARD
     current_pose = controller.get_ee_pose()
     desired_pose = sm.SE3(0, 0.2, 0.0) @ current_pose
-    path_to_send = VelControl.gen_path(current_pose, desired_pose)
+    path_to_send = SimpleController.gen_path(current_pose, desired_pose)
     controller.follow_cart_path(path_to_send, speed=1)
 
     # # MOVE TO THE RIGHT
     current_pose = controller.get_ee_pose()
     desired_pose = sm.SE3(0.3, 0, 0) @ current_pose
-    path_to_send = VelControl.gen_path(current_pose, desired_pose)
+    path_to_send = SimpleController.gen_path(current_pose, desired_pose)
     controller.follow_cart_path(path_to_send, speed=1)
 
     # MOVE PLATE TO HANGED POSE
@@ -452,7 +499,7 @@ def main():
 
     # MOVE PLATE TO RETURN POSE
     current_pose = controller.get_ee_pose()
-    desired_pose = sm.SE3(0,-0.2, 0) @ current_pose
+    desired_pose = sm.SE3(0, -0.2, 0) @ current_pose
     path_to_send = rtb.ctraj(current_pose, desired_pose, 100)
     controller.follow_cart_path(path_to_send, speed=1)
 
@@ -469,7 +516,6 @@ def main():
 
     # RESET TO WAIT POSE
     controller.go_to_joint_angles(WAIT_JS)
-
 
 
 if __name__ == "__main__":
