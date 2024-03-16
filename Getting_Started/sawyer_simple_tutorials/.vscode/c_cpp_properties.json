@@ -1,0 +1,37 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/anhminh/ws/capstone/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/devel/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/razer_hydra/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/sawyer_simulator/sawyer_gazebo/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/sawyer_simulator/sawyer_hardware_interface/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/sawyer_simulator/sawyer_sim_controllers/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/sawyer_simple_tutorials/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/sns_ik/sns_ik_lib/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_core/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_jacobian/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_nullspace/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_robot_state/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_sawyer_utils/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_sim/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_trajectory/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_utils/include/**",
+        "/home/anhminh/ws/Robofield/sawyer101_ws/src/trackit/trackit_velocity_commands/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

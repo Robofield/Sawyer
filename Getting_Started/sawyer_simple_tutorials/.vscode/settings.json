@@ -1,0 +1,12 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/anhminh/ws/Robofield/sawyer101_ws/devel/lib/python3/dist-packages",
+        "/home/anhminh/ws/capstone/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/anhminh/ws/Robofield/sawyer101_ws/devel/lib/python3/dist-packages",
+        "/home/anhminh/ws/capstone/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
+}
